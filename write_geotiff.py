@@ -1,95 +1,76 @@
 """Functions to export LOFAR near-field images (in pqr) to geotiff"""
 
+import datetime
+import rasterio
+import lofarantpos.db
+import lofarantpos.geo
 import numpy as np
 from rasterio.transform import Affine
-import rasterio
 
 
-def normalized_earth_radius(latitude_rad):
-    """
-    Normalized earth radius in m, copied from lofargeo by Michiel Brentjens
-
-    Args:
-       latitude_rad: latitude in radians
-
-    Returns:
-       float: normalized earth radius in meters
-    """
-    wgs84_f = 1. / 298.257223563
-    return 1.0 / np.sqrt(np.cos(latitude_rad)**2 +
-            ((1.0 - wgs84_f)**2) * (np.sin(latitude_rad)**2))
-
-
-def geographic_from_xyz(xyz_m):
-    """
-    Compute lon, lat, and height, copied from lofargeo by Michiel Brentjens
-
-    Args:
-        xyz_m: x, y and z coordinates
-
-    Returns:
-        lat, long, height: Latitude in degrees, longitude in degrees, height in
-                           meters w.r.t. WGS84 ellipsoid
-    """
-    wgs84_a = 6378137.0
-    wgs84_f = 1. / 298.257223563
-    wgs84_e2 = wgs84_f * (2.0 - wgs84_f)
-
-    x_m, y_m, z_m = xyz_m
-    lon_rad = np.arctan2(y_m, x_m)
-    r_m = np.sqrt(x_m**2 + y_m**2)
-
-    # Iterate to latitude solution
-    phi_previous = 1e4
-    phi = np.arctan2(z_m, r_m)
-    while abs(phi - phi_previous) > 1.6e-12:
-        phi_previous = phi
-        phi = np.arctan2(z_m + wgs84_e2 * wgs84_a *
-                            normalized_earth_radius(phi) * np.sin(phi), r_m)
-
-    lat_rad = phi
-    height_m = r_m * np.cos(lat_rad) + z_m * np.sin(lat_rad) - \
-                 wgs84_a * np.sqrt(1.0 - wgs84_e2 * np.sin(lat_rad)**2)
-    return np.rad2deg(lon_rad), np.rad2deg(lat_rad), height_m
-
-
-def pqr_to_longlatheight(pqr):
+def pqr_to_longlatheight(pqr, stationname):
     """
     Convert pqr coordinates to lat, long, height
 
     Args:
-        pqr (np.array): p, q, r coordinates in meter (r can be omitted)
+        pqr (Tuple or np.array of length 2 or 3): p, q, r coordinates in meter
+                                                  (r can be omitted)
+        stationname (str): center station of the coordinate system
 
     Returns:
         long, lat, height: latitude (deg), longitude (deg), height (m) (tuple)
     """
-    # lofarcenter = db.phase_centres["CS002LBA"]
-    lofarcenter_etrs = np.array([3826577.462, 461022.624, 5064892.526])
-    # pqr_to_etrs = db.pqr_to_etrs["CS002LBA"]
-    pqr_to_etrs = np.array([[-0.11959511, -0.79195445, 0.598753],
-                            [0.99282275, -0.09541868, 0.072099],
-                            [0.0000331, 0.60307829, 0.797682]])
+    db = lofarantpos.db.LofarAntennaDatabase()
+    center_etrs = db.phase_centres[stationname]
+    pqr_to_etrs = db.pqr_to_etrs[stationname]
 
+    # Append r=0 if not given
     if len(pqr) == 2:
         pqr = np.array([pqr[0], pqr[1], 0.])
 
-    etrs = pqr_to_etrs @ pqr + lofarcenter_etrs
-    return geographic_from_xyz(etrs)
+    etrs = pqr_to_etrs.dot(pqr) + center_etrs
+    llh_dict = lofarantpos.geo.geographic_from_xyz(etrs)
+    return (np.rad2deg(llh_dict["lon_rad"]),
+            np.rad2deg(llh_dict["lat_rad"]),
+            llh_dict["height_m"])
 
 
-def save_as_geotiff(image, filename, llc, urc):
+def write_geotiff(image, filename, llc, urc, as_pqr=True,
+                  stationname="CS002LBA", obsdate=None, tags=None):
     """
     Save numpy array as GeoTiff
 
     Args:
         image (np.array): numpy array with image (should be 2-dimensional)
         filename (str): filename where the geotiff should be stored
-        llc (Tuple(float)): lower left corner in degrees (long, lat)
-        urc (Tuple(float)): upper right corner in degrees (long, lat)
+        llc (Tuple(float)): lower left corner in degrees (long, lat) or pqr (m)
+                            (coordinate of center of lower left pixel)
+        urc (Tuple(float)): upper right corner in degrees (long, lat) or pqr (m)
+                            (coordinate of center of upper right pixel)
+        as_pqr (bool): interpret llc and urc as pqr coordinates in meters
+        stationname (str): center station in case of pqr coordinates
+        obsdate (datetime or string): date of the observation
+        tags (Dict[str]): dict with additional metadata e.g. {"Author": "Jan"}
+
+    Example:
+        >>> write_geotiff(data, "test.tif", (-200, -200), (200, 200),
+                          stationname="CS002LBA",
+                          obsdate="2016-02-12 08:00:00",
+                          tags={"Author": "Tammo Jan Dijkema",
+                                "Project": "EOR"})
+
+        >>> write_geotiff(data, "test.tif",
+                          (6.86686, 52.91332), (6.87281, 52.91692),
+                          as_pqr=False)
     """
     image = np.squeeze(image)
 
     height, width = image.shape
+
+    if as_pqr:
+        llc = pqr_to_longlatheight(llc, stationname)
+        urc = pqr_to_longlatheight(urc, stationname)
+
     long_res = (urc[0] - llc[0]) / width
     lat_res = (urc[1] - llc[1]) / height
 
@@ -97,10 +78,18 @@ def save_as_geotiff(image, filename, llc, urc):
                                    llc[1] - lat_res / 2) * \
                   Affine.scale(long_res, lat_res)
 
+    if isinstance(obsdate, datetime.datetime):
+        datestr = obsdate.strftime("%Y-%m-%d %H:%M:%S")
+    elif obsdate is not None:
+        datestr = obsdate
+
     with rasterio.open(filename, "w", driver="GTiff",
                        height=height, width=width,
-                       count=1,
-                       dtype=image.dtype,
-                       crs='+proj=latlong',
-                       transform=transform) as gtif:
+                       count=1, dtype=image.dtype,
+                       crs='+proj=latlong', transform=transform) as gtif:
         gtif.write(image, 1)
+        if obsdate is not None:
+            gtif.update_tags(TIFFTAG_DATETIME=datestr)
+            gtif.update_tags(obsdate=datestr)
+        if tags is not None:
+            gtif.update_tags(**tags)
