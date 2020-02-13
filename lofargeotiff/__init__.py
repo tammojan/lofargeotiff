@@ -85,7 +85,7 @@ def write_geotiff(image, filename, llc, urc, as_pqr=True,
 
     with rasterio.open(filename, "w", driver="GTiff",
                        height=height, width=width,
-                       count=1, dtype=image.dtype,
+                       count=1, dtype=image.dtype.__str__(),
                        crs='+proj=latlong', transform=transform) as gtif:
         gtif.write(image, 1)
         if obsdate is not None:
