@@ -6,6 +6,7 @@ import lofarantpos.db
 import lofarantpos.geo
 import numpy as np
 from rasterio.transform import Affine
+import rasterio.crs
 
 
 def pqr_to_longlatheight(pqr, stationname):
@@ -86,7 +87,7 @@ def write_geotiff(image, filename, llc, urc, as_pqr=True,
     with rasterio.open(filename, "w", driver="GTiff",
                        height=height, width=width,
                        count=1, dtype=image.dtype.__str__(),
-                       crs='+proj=latlong', transform=transform) as gtif:
+                       crs=rasterio.crs.CRS.from_epsg(4326), transform=transform) as gtif:
         gtif.write(image, 1)
         if obsdate is not None:
             gtif.update_tags(TIFFTAG_DATETIME=datestr)
