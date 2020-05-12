@@ -71,6 +71,14 @@ def write_geotiff(image, filename, llc, urc, as_pqr=True,
         llc = pqr_to_longlatheight(llc, stationname)
         urc = pqr_to_longlatheight(urc, stationname)
 
+    if llc[1] < urc[1]:
+        llc = list(llc)
+        urc = list(urc)
+        # Flip latitude; latitude of llc must be largest (only tested on lat>0)
+        llc[1], urc[1] = urc[1], llc[1]
+        image = image[::-1, :]
+
+
     long_res = (urc[0] - llc[0]) / width
     lat_res = (urc[1] - llc[1]) / height
 
