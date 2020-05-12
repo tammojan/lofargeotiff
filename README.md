@@ -33,4 +33,4 @@ other package that reads TIFF. The metadata can be inspected on the command
 line with `exiftool`.
 
 Also, the resulting GeoTIFF files can be viewed in the online viewer
-https://geotiff.io . See [this example](http://app.geotiff.io/sum?url=https://github.com/tammojan/lofargeotiff/blob/master/example.tiff?raw=true)
+https://geotiff.io . See [this example](http://app.geotiff.io/sum?url=https://github.com/tammojan/lofargeotiff/blob/master/example.tiff?raw=true).
