@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="lofargeotiff",
-    version="0.1",
+    version="0.2",
     author="Tammo Jan Dijkema",
     author_email="dijkema@astron.nl",
     description="Write LOFAR near field images as GeoTIFF",
