@@ -54,15 +54,16 @@ def write_geotiff(image, filename, llc, urc, as_pqr=True,
         tags (Dict[str]): dict with additional metadata e.g. {"Author": "Jan"}
 
     Example:
+        >>> data = np.ones((500, 600))
         >>> write_geotiff(data, "test.tif", (-200, -200), (200, 200),
-                          stationname="CS002LBA",
-                          obsdate="2016-02-12 08:00:00",
-                          tags={"Author": "Tammo Jan Dijkema",
-                                "Project": "EOR"})
+        ...               stationname="CS002LBA",
+        ...               obsdate="2016-02-12 08:00:00",
+        ...               tags={"Author": "Tammo Jan Dijkema",
+        ...                     "Project": "EOR"})
 
         >>> write_geotiff(data, "test.tif",
-                          (6.86686, 52.91332), (6.87281, 52.91692),
-                          as_pqr=False)
+        ...               (6.86686, 52.91332), (6.87281, 52.91692),
+        ...               as_pqr=False)
     """
     image = np.squeeze(image)
 
