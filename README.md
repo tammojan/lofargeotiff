@@ -31,3 +31,6 @@ write_geotiff(data, "test.tif", lowerleft, upperright,
 The resulting file can be read back into python using `rasterio.open`, or any
 other package that reads TIFF. The metadata can be inspected on the command
 line with `exiftool`.
+
+Also, the resulting GeoTIFF files can be viewed in the online viewer
+https://geotiff.io
